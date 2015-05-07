@@ -30,9 +30,11 @@ if ( typeof Object.create !== 'function' ) {
             self.elem = elem;
             self.$elem = $( elem );
             self.options = $.extend( {}, $.fn.toolbar.options, options );
-            self.toolbar = $('<div class="tool-container gradient" />')
+            self.toolbar = $('<div/>')
+                .addClass(self.options.class)
+                .addClass('tool-container gradient')
                 .addClass('tool-'+self.options.position)
-                .addClass('tool-rounded')
+                .addClass('tool-'+self.options.orientation)
                 .append('<div class="tool-items" />')
                 .append('<div class="arrow" />')
                 .appendTo('body')
@@ -108,7 +110,7 @@ if ( typeof Object.create !== 'function' ) {
             $(window).resize(function( event ) {
                 event.stopPropagation();
                 if ( self.toolbar.is(":visible") ) {
-                    self.toolbarCss = self.getCoordinates(self.options.position, 20);
+                    self.toolbarCss = self.getCoordinates(self.options.position, 0);
                     self.collisionDetection();
                     self.toolbar.css( self.toolbarCss );
                     self.toolbar_arrow.css( self.arrowCss );
@@ -119,11 +121,13 @@ if ( typeof Object.create !== 'function' ) {
         populateContent: function() {
             var self = this;
             var location = self.toolbar.find('.tool-items');
-            var content = $(self.options.content).clone( true ).find('a').addClass('tool-item gradient');
+            var content = $(self.options.content).clone( true ).find('> *').addClass('tool-item');
             location.html(content);
+            $.compile(location);
             location.find('.tool-item').on('click', function(event) {
                 event.preventDefault();
                 self.$elem.trigger('toolbarItemClick', this);
+                self.hide();
             });
         },
 
@@ -150,26 +154,31 @@ if ( typeof Object.create !== 'function' ) {
                 case 'top':
                     return {
                         left: self.coordinates.left-(self.toolbar.width()/2)+(self.$elem.outerWidth()/2),
-                        top: self.coordinates.top-self.$elem.height()-adjustment,
+                        top: self.coordinates.top-self.toolbar.outerHeight()-adjustment,
                         right: 'auto'
                     };
                 case 'left':
                     return {
-                        left: self.coordinates.left-(self.toolbar.width()/2)-(self.$elem.width()/2)-adjustment,
+                        left: self.coordinates.left-self.toolbar.width()-adjustment,
                         top: self.coordinates.top-(self.toolbar.height()/2)+(self.$elem.outerHeight()/2),
                         right: 'auto'
                     };
                 case 'right':
                     return {
-                        left: self.coordinates.left+(self.toolbar.width()/2)+(self.$elem.width()/3)+adjustment,
+                        left: self.coordinates.left+self.$elem.outerWidth()+adjustment,
                         top: self.coordinates.top-(self.toolbar.height()/2)+(self.$elem.outerHeight()/2),
                         right: 'auto'
                     };
                 case 'bottom':
                     return {
                         left: self.coordinates.left-(self.toolbar.width()/2)+(self.$elem.outerWidth()/2),
-                        top: self.coordinates.top+self.$elem.height()+adjustment,
+                        top: self.coordinates.top+self.$elem.outerHeight()+adjustment,
                         right: 'auto'
+                    };
+                case 'overlay':
+                    return {
+                        left: self.coordinates.left-(self.toolbar.width()/2)+(self.$elem.outerWidth()/2),
+                        top: self.coordinates.top+ (self.$elem.outerHeight()-self.toolbar.outerHeight())/2
                     };
             }
         },
@@ -177,18 +186,17 @@ if ( typeof Object.create !== 'function' ) {
         collisionDetection: function() {
             var self = this;
             var edgeOffset = 20;
-            if(self.options.position == 'top' || self.options.position == 'bottom') {
-                self.arrowCss = {left: '50%', right: '50%'};
-                if( self.toolbarCss.left < edgeOffset ) {
-                    self.toolbarCss.left = edgeOffset;
-                    self.arrowCss.left = self.$elem.offset().left + self.$elem.width()/2-(edgeOffset);
-                }
-                else if(($(window).width() - (self.toolbarCss.left + self.toolbarWidth)) < edgeOffset) {
-                    self.toolbarCss.right = edgeOffset;
-                    self.toolbarCss.left = 'auto';
-                    self.arrowCss.left = 'auto';
-                    self.arrowCss.right = ($(window).width()-self.$elem.offset().left)-(self.$elem.width()/2)-(edgeOffset)-5;
-                }
+            var fromRight = $(window).width() - (self.toolbarCss.left + self.toolbarWidth);
+            var fromLeft = self.toolbarCss.left;
+
+            self.arrowCss = {left: '50%', right: '50%'};
+
+            if( fromLeft < edgeOffset ) {
+                self.toolbarCss.left = edgeOffset;
+                self.arrowCss.left = self.$elem.offset().left + self.$elem.width()/2-(edgeOffset);
+            } else if(fromRight < edgeOffset) {
+                self.toolbarCss.left = fromLeft + fromRight - edgeOffset;
+                self.arrowCss.left = ($(window).width()-self.$elem.offset().left)-(self.$elem.width()/2)-(edgeOffset)-5;
             }
         },
 
@@ -201,15 +209,19 @@ if ( typeof Object.create !== 'function' ) {
 
             switch(self.options.position) {
                 case 'top':
+                    self.toolbar.css({top: self.toolbarCss.top+20})
                     animation.top = '-=20';
                     break;
                 case 'left':
+                    self.toolbar.css({left: self.toolbarCss.left+20})
                     animation.left = '-=20';
                     break;
                 case 'right':
+                    self.toolbar.css({left: self.toolbarCss.left-20})
                     animation.left = '+=20';
                     break;
                 case 'bottom':
+                    self.toolbar.css({top: self.toolbarCss.top-20})
                     animation.top = '+=20';
                     break;
             }
@@ -268,6 +280,7 @@ if ( typeof Object.create !== 'function' ) {
     $.fn.toolbar.options = {
         content: '#myContent',
         position: 'top',
+        orientation: 'horizontal',
         hideOnClick: false,
         zIndex: 120,
         hover: false
